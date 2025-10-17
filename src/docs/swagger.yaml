@@ -1,0 +1,1009 @@
+openapi: 3.0.4
+info:
+  title: Auth System API
+  description: |
+    Comprehensive authentication API supporting:
+    - Email/Password registration and login
+    - OAuth (Google, GitHub, Microsoft)
+    - JWT-based authentication with refresh tokens
+    - Email verification and password reset
+  version: 1.0.0
+  contact:
+    name: Abdulrahman Hegazy
+    email: a.0hegazy@proton.me
+externalDocs:
+  description: Find out more about the project
+  url: https://www.github.com/ahegazy0/auth-system-API
+
+servers:
+  - url: http://localhost:5000/api/v1/auth
+    description: Local development server
+  - url: https://auth-system-api.onrender.com/api/v1/auth
+    description: Production server
+
+tags:
+  - name: Auth
+    description: Core authentication endpoints (register, login, logout)
+  - name: Password
+    description: Password management (reset, forgot)
+  - name: Email
+    description: Email verification endpoints
+  - name: User
+    description: User profile management
+  - name: OAuth
+    description: OAuth 2.0 authentication providers
+
+paths:
+  /register:
+    post:
+      tags:
+        - Auth
+      summary: Register a new user
+      description: |
+        Creates a new user account. After registration, a verification email 
+        is sent to the provided email address.
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Email already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                statusCode: 409
+                success: false
+                status: 'fail'
+                message: "Email already registered"
+                data: null
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /login:
+    post:
+      tags:
+        - Auth
+      summary: Login to user account
+      description: Authenticates user and returns access token and refresh token (in cookie)
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          headers:
+            Set-Cookie:
+              description: Refresh token stored in HTTP-only cookie
+              schema:
+                type: string
+                example: refreshToken=eyJhbGc...; HttpOnly; Secure; SameSite=Strict; Max-Age=604800
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                statusCode: 401
+                success: false
+                status: 'fail'
+                message: "Invalid email or password"
+                data: null
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /logout:
+    post:
+      tags:
+        - Auth
+      summary: Logout current user
+      description: |
+        Invalidates the refresh token and clears the authentication cookie.
+        Requires either a refresh token in the request body or in cookies.
+      operationId: logoutUser
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+      responses:
+        '200':
+          description: Logged out successfully
+          headers:
+            Set-Cookie:
+              description: Clears the refresh token cookie
+              schema:
+                type: string
+                example: refreshToken=; HttpOnly; Secure; SameSite=Strict; Max-Age=0
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogoutResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /refresh-token:
+    post:
+      tags:
+        - Auth
+      summary: Refresh access token
+      description: |
+        Generates a new access token using a valid refresh token.
+        The refresh token can be provided in the request body or via cookie.
+      operationId: refreshToken
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: Access token refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshTokenResponse'
+        '400':
+          description: Missing refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                statusCode: 400
+                success: false
+                status: "fail"
+                message: "Refresh token is required"
+                data: null
+        '401':
+          description: Invalid or expired refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                statusCode: 401
+                success: false
+                status: "fail"
+                message: "Invalid or expired refresh token"
+                data: null
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /forgot-password:
+    post:
+      tags:
+        - Password
+      summary: Request password reset
+      description: |
+        Sends a password reset link to the user's email if the account exists.
+        Returns success regardless to prevent email enumeration.
+      operationId: forgotPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+      responses:
+        '200':
+          description: Password reset email sent (if account exists)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForgotPasswordResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /reset-password:
+    patch:
+      tags:
+        - Password
+      summary: Reset user password
+      description: Resets the user's password using a valid reset token from email
+      operationId: resetPassword
+      parameters:
+        - in: query
+          name: token
+          required: true
+          schema:
+            type: string
+          description: Password reset token received via email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        '200':
+          description: Password reset successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResetPasswordResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Invalid or expired reset token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                statusCode: 401
+                success: false
+                status: "fail"
+                message: "Reset token has expired or is invalid"
+                data: null
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /verify-email:
+    get:
+      tags:
+        - Email
+      summary: Verify user email
+      description: Verifies the user's email address using the token sent during registration
+      operationId: verifyEmail
+      parameters:
+        - in: query
+          name: token
+          required: true
+          schema:
+            type: string
+          description: Email verification token
+      responses:
+        '200':
+          description: Email verified successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerifyEmailResponse'
+        '400':
+          description: Missing verification token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                statusCode: 400
+                success: false
+                status: "fail"
+                message: "Verification token is required"
+                data: null
+        '401':
+          description: Invalid or expired verification token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                statusCode: 401
+                success: false
+                status: "fail"
+                message: "Email verification token is invalid or expired"
+                data: null
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /me:
+    get:
+      tags:
+        - User
+      summary: Get current user profile
+      description: Returns the authenticated user's profile information
+      operationId: getCurrentUser
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User profile retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetCurrentUserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    patch:
+      tags:
+        - User
+      summary: Update current user profile
+      description: |
+        Updates the authenticated user's profile (name, email).
+        If email is changed, a new verification email is sent.
+      operationId: updateProfile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateProfileResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Email already in use
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                statusCode: 409
+                success: false
+                status: "fail"
+                message: "Email already in use"
+                data: null
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /google:
+    get:
+      tags:
+        - OAuth
+      summary: Initiate Google OAuth login
+      description: Redirects user to Google's OAuth consent screen
+      operationId: startGoogleOAuth
+      responses:
+        '302':
+          description: Redirect to Google OAuth
+          headers:
+            Location:
+              schema:
+                type: string
+                example: https://accounts.google.com/o/oauth2/v2/auth?...
+
+  /google/callback:
+    get:
+      tags:
+        - OAuth
+      summary: Google OAuth callback
+      description: |
+        Handles the OAuth callback from Google. This endpoint is called by Google
+        after user authorization and exchanges the code for user information.
+      operationId: handleGoogleCallback
+      parameters:
+        - in: query
+          name: code
+          required: true
+          schema:
+            type: string
+          description: Authorization code from Google
+        - in: query
+          name: state
+          schema:
+            type: string
+          description: State parameter for CSRF protection
+      responses:
+        '302':
+          description: Redirect to frontend with tokens
+          headers:
+            Location:
+              schema:
+                type: string
+                example: https://yourapp.com/auth/success?token=...
+            Set-Cookie:
+              schema:
+                type: string
+                example: refreshToken=eyJhbGc...; HttpOnly; Secure
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /github:
+    get:
+      tags:
+        - OAuth
+      summary: Initiate GitHub OAuth login
+      description: Redirects user to GitHub's OAuth consent screen
+      operationId: startGitHubOAuth
+      responses:
+        '302':
+          description: Redirect to GitHub OAuth
+          headers:
+            Location:
+              schema:
+                type: string
+                example: https://github.com/login/oauth/authorize?...
+
+  /github/callback:
+    get:
+      tags:
+        - OAuth
+      summary: GitHub OAuth callback
+      description: Handles the OAuth callback from GitHub
+      operationId: handleGitHubCallback
+      parameters:
+        - in: query
+          name: code
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: state
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect to frontend with tokens
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /microsoft:
+    get:
+      tags:
+        - OAuth
+      summary: Initiate Microsoft OAuth login
+      description: Redirects user to Microsoft's OAuth consent screen
+      operationId: startMicrosoftOAuth
+      responses:
+        '302':
+          description: Redirect to Microsoft OAuth
+          headers:
+            Location:
+              schema:
+                type: string
+                example: https://login.microsoftonline.com/common/oauth2/v2.0/authorize?...
+
+  /microsoft/callback:
+    get:
+      tags:
+        - OAuth
+      summary: Microsoft OAuth callback
+      description: Handles the OAuth callback from Microsoft
+      operationId: handleMicrosoftCallback
+      parameters:
+        - in: query
+          name: code
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: state
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect to frontend with tokens
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access token for API authentication
+    
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: refreshToken
+      description: HTTP-only cookie containing refresh token
+
+  responses:
+    BadRequest:
+      description: Invalid request data
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            statusCode: 400
+            success: false
+            status: 'fail'
+            message: "Invalid input data"
+            data: null
+
+    Unauthorized:
+      description: Authentication required or invalid token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            statusCode: 401
+            success: false
+            status: 'fail'
+            message: "Unauthorized. Please log in."
+            data: null
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            statusCode: 404
+            success: false
+            status: 'fail'
+            message: "Resource not found"
+            data: null
+
+    TooManyRequests:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            statusCode: 429
+            success: false
+            status: 'fail'
+            message: "Too many requests. Please try again later."
+            data: null
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            statusCode: 500
+            success: false
+            status: 'error'
+            message: "Internal server error"
+            data: null
+
+  schemas:
+    RegisterRequest:
+      type: object
+      required:
+        - name
+        - email
+        - password
+        - passwordConfirm
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 50
+          example: "Demo User"
+          description: User's full name
+        email:
+          type: string
+          format: email
+          example: "demouser@mail.com"
+          description: Valid email address
+        password:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 128
+          pattern: '^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).*$'
+          example: "StrongPass123"
+          description: Must contain uppercase, lowercase, and number
+        passwordConfirm:
+          type: string
+          format: password
+          example: "StrongPass123"
+          description: Must match password field
+
+    RegisterResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                user:
+                  $ref: '#/components/schemas/User'
+          example:
+            statusCode: 201
+            success: true
+            message: "User registered successfully. Please check your email to verify your account."
+            data:
+              user:
+                id: "64c9b8d3a7e9a2d8f0c1b234"
+                name: "Demo User"
+                email: "demouser@mail.com"
+                isEmailVerified: false
+                role: "user"
+                createdAt: "2025-10-15T12:00:00.000Z"
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: "demouser@mail.com"
+        password:
+          type: string
+          format: password
+          example: "StrongPass123"
+
+    LoginResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                user:
+                  $ref: '#/components/schemas/User'
+                accessToken:
+                  type: string
+                  description: JWT access token (expires in 15 minutes)
+                  example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+          example:
+            statusCode: 200
+            success: true
+            message: "Login successful"
+            data:
+              user:
+                id: "64c9b8d3a7e9a2d8f0c1b234"
+                name: "Demo User"
+                email: "demouser@mail.com"
+                isEmailVerified: true
+                role: "user"
+              accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+    LogoutRequest:
+      type: object
+      properties:
+        refreshToken:
+          type: string
+          description: Optional if provided via cookie
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+    LogoutResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              nullable: true
+          example:
+            statusCode: 200
+            success: true
+            message: "Logged out successfully"
+            data: null
+
+    RefreshTokenRequest:
+      type: object
+      properties:
+        refreshToken:
+          type: string
+          description: Optional if provided via cookie
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+    RefreshTokenResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                accessToken:
+                  type: string
+                  example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+          example:
+            statusCode: 200
+            success: true
+            message: "Access token refreshed"
+            data:
+              accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+    ForgotPasswordRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+          example: "user@example.com"
+
+    ForgotPasswordResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              nullable: true
+          example:
+            statusCode: 200
+            success: true
+            message: "If an account with that email exists, a password reset link has been sent."
+            data: null
+
+    ResetPasswordRequest:
+      type: object
+      required:
+        - password
+      properties:
+        password:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 128
+          pattern: '^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).*$'
+          example: "NewStrongPass123"
+          description: Must contain uppercase, lowercase, and number
+
+    ResetPasswordResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              nullable: true
+          example:
+            statusCode: 200
+            success: true
+            message: "Password has been reset successfully"
+            data: null
+
+    VerifyEmailResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                user:
+                  $ref: '#/components/schemas/User'
+          example:
+            statusCode: 200
+            success: true
+            message: "Email verified successfully"
+            data:
+              user:
+                id: "64c9b8d3a7e9a2d8f0c1b234"
+                name: "Demo User"
+                email: "user@example.com"
+                role: "user"
+                isEmailVerified: true
+
+    GetCurrentUserResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                user:
+                  $ref: '#/components/schemas/User'
+          example:
+            statusCode: 200
+            success: true
+            message: "Current user retrieved"
+            data:
+              user:
+                id: "64c9b8d3a7e9a2d8f0c1b234"
+                name: "Demo User"
+                email: "user@example.com"
+                role: "user"
+                isEmailVerified: true
+
+    UpdateProfileRequest:
+      type: object
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 50
+          example: "Updated Name"
+        email:
+          type: string
+          format: email
+          example: "newemail@example.com"
+          description: Changing email requires re-verification
+
+    UpdateProfileResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                user:
+                  $ref: '#/components/schemas/User'
+          example:
+            statusCode: 200
+            success: true
+            message: "Profile updated successfully"
+            data:
+              user:
+                id: "64c9b8d3a7e9a2d8f0c1b234"
+                name: "Updated User"
+                email: "updated@mail.com"
+                role: "user"
+                isEmailVerified: true
+
+    ApiResponse:
+      type: object
+      required:
+        - statusCode
+        - success
+        - message
+        - data
+      properties:
+        statusCode:
+          type: integer
+          description: HTTP status code
+          example: 200
+        success:
+          type: boolean
+          description: True if statusCode < 400
+          example: true
+        message:
+          type: string
+          description: Human-readable response message
+          example: "Request processed successfully"
+        data:
+          description: Response payload (null when no data)
+          oneOf:
+            - type: object
+            - type: "null"
+
+    ErrorResponse:
+      type: object
+      required:
+        - statusCode
+        - success
+        - status
+        - message
+      properties:
+        statusCode:
+          type: integer
+          example: 400
+        success:
+          type: boolean
+          example: false
+        status:
+          type: string
+          enum: [fail, error]
+          description: "'fail' for client errors (4xx), 'error' for server errors (5xx)"
+          example: "fail"
+        message:
+          type: string
+          description: Error message
+          example: "Invalid input data"
+        data:
+          type: object
+          nullable: true
+          description: Additional error details (optional)
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique user identifier
+          example: "64c9b8d3a7e9a2d8f0c1b234"
+        email:
+          type: string
+          format: email
+          example: "demouser@mail.com"
+        name:
+          type: string
+          example: "Demo User"
+        isEmailVerified:
+          type: boolean
+          example: true
+        role:
+          type: string
+          enum: [user, admin]
+          example: "user"
+        lastLogin:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2025-10-15T14:00:00.000Z"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2025-10-15T12:00:00.000Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2025-10-15T12:30:00.000Z"
+        oauth:
+          type: object
+          nullable: true
+          description: OAuth provider information (if applicable)
+          properties:
+            google:
+              $ref: '#/components/schemas/OAuthProvider'
+            github:
+              $ref: '#/components/schemas/OAuthProvider'
+            microsoft:
+              $ref: '#/components/schemas/OAuthProvider'
+
+    OAuthProvider:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Provider-specific user ID
+          example: "google-oauth-id-123"
+        email:
+          type: string
+          format: email
+          example: "oauthuser@gmail.com"
+        name:
+          type: string
+          example: "OAuth User"
+        picture:
+          type: string
+          format: uri
+          nullable: true
+          example: "https://example.com/profile.jpg"
+        profileUrl:
+          type: string
+          format: uri
+          nullable: true
+          example: "https://google.com/profile/oauthuser"
