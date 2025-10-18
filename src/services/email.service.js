@@ -35,6 +35,12 @@ class EmailService {
             refreshToken: GOOGLE_REFRESH_TOKEN,
             accessToken: accessToken.token,
         },
+        tls:{
+            rejectUnauthorized: false
+        },
+        connectionTimeout: 50000,
+        greetingTimeout: 30000,
+        socketTimeout: 50000
         });
     }
 
@@ -42,7 +48,7 @@ class EmailService {
         const transporter = await this.createTransporter();
 
         await transporter.sendMail({
-        from: `Prisma Auth <${GOOGLE_USER}>`,
+        from: `Auth API <${GOOGLE_USER}>`,
         to,
         subject: 'Verify Your Email',
         html: `
@@ -58,7 +64,7 @@ class EmailService {
         const transporter = await this.createTransporter();
 
         await transporter.sendMail({
-        from: `Prisma Auth <${GOOGLE_USER}>`,
+        from: `Auth API<${GOOGLE_USER}>`,
         to,
         subject: 'Password Reset Request',
         html: `
