@@ -25,20 +25,27 @@
 - [License](#-license)
 ---
 
-## ⚠️ Warn
+## ⚠️ Warning
 
-**If you're using the deployed API on Render (not local), email features will NOT work.**
+If you're using the deployed API on Render (not local), **email features will NOT work**.
+
 ### Why?
 Render's free tier blocks outgoing SMTP connections on ports 25, 465, and 587 for security reasons. This affects:
-- ✉️ Email verification during registration
-- 🔐 Password reset emails
-- 📧 Any email-based features
+* ✉️ Email verification during registration
+* 🔐 Password reset emails
+* 📧 Any email-based features
 
 ### Solutions:
 
+**Quick Test Account** (Pre-verified, skip email verification):
+* **Email:** `nijevyto@denipl.net`
+* **Password:** `asd@123A`
+
 **Option 1: Run Locally** ✅
+Clone the repo and run it on your machine for full email functionality.
 
 **Option 2: Switch Email Provider** 🔄
+Replace Gmail SMTP with MailerSend, Resend, or SendGrid (HTTP-based APIs that work on Render free tier).
 
 ---
 
