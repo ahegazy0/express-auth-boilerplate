@@ -25,6 +25,23 @@
 - [License](#-license)
 ---
 
+## ⚠️ Warn
+
+**If you're using the deployed API on Render (not local), email features will NOT work.**
+### Why?
+Render's free tier blocks outgoing SMTP connections on ports 25, 465, and 587 for security reasons. This affects:
+- ✉️ Email verification during registration
+- 🔐 Password reset emails
+- 📧 Any email-based features
+
+### Solutions:
+
+**Option 1: Run Locally** ✅
+
+**Option 2: Switch Email Provider** 🔄
+
+---
+
 ## ✨ Features
 
 ### 🔑 Authentication & Authorization
