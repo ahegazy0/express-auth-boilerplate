@@ -41,7 +41,8 @@ class AuthController {
                 role: user.role,
                 isEmailVerified: user.isEmailVerified
             }, 
-            accessToken 
+            accessToken,
+            refreshToken
         }, 'Login successful');
         
         res.status(response.statusCode).json(response);
