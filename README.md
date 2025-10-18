@@ -8,7 +8,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
-[Live Demo](https://express-auth-boilerplate.onrender.com) | [API Documentation](https://express-auth-boilerplate.onrender.com/api/v1/docs) | [Report Bug](https://github.com/ahegazy0/express-auth-boilerplate/issues) | [Request Feature](https://github.com/ahegazy0/express-auth-boilerplate/issues)
+[Live Demo](https://express-auth-boilerplate.onrender.com/api/v1/auth/google) | [API Documentation](https://express-auth-boilerplate.onrender.com/api/v1/docs) | [Report Bug](https://github.com/ahegazy0/express-auth-boilerplate/issues) | [Request Feature](https://github.com/ahegazy0/express-auth-boilerplate/issues)
 
 ---
 
